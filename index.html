@@ -332,7 +332,7 @@
           if(ev.results[i].isFinal){ finalTxt += tr; } else { interim += tr; }
         }
         if(finalTxt){
-          baseText = (baseText ? baseText.replace(/s*$/,'') + ' ' : '') + finalTxt.trim();
+          baseText = (baseText ? baseText.replace(/\s*$/,'') + ' ' : '') + finalTxt.trim();
           ta.value = baseText;
         } else {
           ta.value = (baseText ? baseText + ' ' : '') + interim;
@@ -424,7 +424,7 @@
   renderThumbs();
 
   /* ---------- Daten sammeln ---------- */
-  function sanitize(s){ return (s||'').trim().replace(/[^p{L}p{N} _-]/gu,'').replace(/s+/g,'_').replace(/_+/g,'_').replace(/^_+|_+$/g,'').slice(0,40) || 'Kunde'; }
+  function sanitize(s){ return (s||'').trim().replace(/[^\p{L}\p{N} _-]/gu,'').replace(/\s+/g,'_').replace(/_+/g,'_').replace(/^_+|_+$/g,'').slice(0,40) || 'Kunde'; }
   function gather(){
     var mats=[];
     Array.prototype.forEach.call(matlist.querySelectorAll('.mat'), function(row){
