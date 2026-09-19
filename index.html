@@ -559,8 +559,7 @@
       '<h3>Kunde</h3><p>'+esc(d.kunde)+'<br>'+esc(d.anschrift)+'<br>'+esc(d.mitarbeiter)+'</p>'+
       '<h3>Anfahrt</h3><p>'+esc(d.km)+' km · '+esc(d.fahrmin)+' Min · '+esc(d.anfahrtbem)+'</p>'+
       '<h3>Arbeitszeit</h3><p>'+esc(d.beginn)+'–'+esc(d.ende)+', Pause '+esc(d.pause)+' Min · '+esc(d.az)+'</p>'+
-      '<h3>Durchgeführte Arbeiten</h3><p>'+esc(d.arbeiten).replace(/
-/g,'<br>')+'</p>'+
+      '<h3>Durchgeführte Arbeiten</h3><p>'+esc(d.arbeiten).replace(/\n/g,'<br>')+'</p>'+
       (mats?('<h3>Material & Leistungen</h3><ul>'+mats+'</ul>'):'')+
       (pics?('<h3>Fotos</h3><div>'+pics+'</div>'):'');
     window.print();
