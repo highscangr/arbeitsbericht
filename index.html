@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#22303C">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Arbeitsbericht</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --paper:#EEF0EC;
+    --card:#FFFFFF;
+    --ink:#1B2430;
+    --muted:#5C6672;
+    --steel:#22303C;
+    --amber:#F5A623;
+    --amber-press:#DB8F13;
+    --line:#C9CFC7;
+    --line-soft:#E2E5E0;
+    --ok:#2F7A54;
+    --danger:#B23B3B;
+    --radius:12px;
+    --tap:52px;
+    --head:'Archivo', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --body:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper); color:var(--ink); font-family:var(--body);
+    font-size:16px; line-height:1.45; -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:600px; margin:0 auto; padding:0 0 24px;}
+
+  /* App bar */
+  .appbar{
+    position:sticky; top:0; z-index:20;
+    background:var(--steel); color:#fff;
+    padding:calc(env(safe-area-inset-top) + 12px) 16px 12px;
+    display:flex; align-items:center; gap:12px;
+    box-shadow:0 1px 0 rgba(0,0,0,.15);
+  }
+  .brandmark{
+    width:34px; height:34px; flex:0 0 auto; border-radius:8px;
+    background:var(--amber); display:flex; align-items:center; justify-content:center;
+  }
+  .brandmark svg{width:20px; height:20px; display:block;}
+  .brandtext{display:flex; flex-direction:column; line-height:1;}
+  .brandtext b{font-family:var(--head); font-weight:800; letter-spacing:.06em; font-size:16px;}
+  .brandtext span{font-size:11px; color:#AEB8C2; margin-top:3px; letter-spacing:.02em;}
+  .nrchip{
+    margin-left:auto; text-align:right; font-family:var(--head); font-weight:700;
+    font-size:12px; color:#fff; background:rgba(255,255,255,.10);
+    border:1px solid rgba(255,255,255,.18); padding:6px 10px; border-radius:8px;
+    letter-spacing:.03em; white-space:nowrap;
+  }
+  .nrchip small{display:block; font-weight:600; color:#AEB8C2; font-size:9px; letter-spacing:.12em; margin-bottom:2px;}
+
+  /* Firma line */
+  .firma{
+    display:flex; align-items:center; gap:8px; padding:10px 16px;
+    background:#E7E9E4; border-bottom:1px solid var(--line);
+  }
+  .firma label{font-size:12px; color:var(--muted); flex:0 0 auto;}
+  .firma input{
+    border:none; background:transparent; font-family:var(--head); font-weight:700;
+    font-size:15px; color:var(--ink); width:100%; padding:4px 0;
+  }
+  .firma input:focus{outline:none;}
+
+  /* Sections */
+  section{padding:22px 16px; border-bottom:1px solid var(--line);}
+  section:last-of-type{border-bottom:none;}
+  .shead{display:flex; align-items:center; gap:11px; margin:0 0 15px;}
+  .step{
+    width:28px; height:28px; flex:0 0 auto; background:var(--amber);
+    color:var(--steel); font-family:var(--head); font-weight:800; font-size:15px;
+    display:flex; align-items:center; justify-content:center; border-radius:6px;
+  }
+  .shead h2{font-family:var(--head); font-weight:700; font-size:18px; margin:0; letter-spacing:.01em;}
+
+  label.fld{display:block; margin:0 0 13px;}
+  label.fld > .lab{display:block; font-size:13px; color:var(--muted); margin:0 0 5px;}
+  .req::after{content:" *"; color:var(--amber-press); font-weight:700;}
+  input[type=text], input[type=date], input[type=time], input[type=number], textarea{
+    width:100%; font-family:var(--body); font-size:16px; color:var(--ink);
+    background:var(--card); border:1.5px solid var(--line);
+    border-radius:10px; padding:13px 12px; min-height:var(--tap);
+  }
+  textarea{min-height:150px; resize:vertical; line-height:1.5;}
+  input:focus, textarea:focus{outline:none; border-color:var(--steel); box-shadow:0 0 0 3px rgba(34,48,60,.10);}
+  .row{display:flex; gap:10px;}
+  .row > *{flex:1; min-width:0;}
+  .grid3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;}
+  .hint{font-size:12px; color:var(--muted); margin-top:6px;}
+
+  /* Arbeitszeit result */
+  .azbox{
+    margin-top:4px; display:flex; align-items:center; gap:10px;
+    background:#EAF2EC; border:1px solid #BBD8C6; border-radius:10px; padding:12px 14px;
+  }
+  .azbox .k{font-size:13px; color:var(--muted);}
+  .azbox .v{margin-left:auto; font-family:var(--head); font-weight:800; font-size:20px; color:var(--ok);}
+  .azbox.bad{background:#F6E9E9; border-color:#E1B9B9;}
+  .azbox.bad .v{color:var(--danger);}
+
+  /* Mic */
+  .microw{display:flex; gap:10px; margin-top:10px;}
+  .micbtn{
+    flex:1; min-height:var(--tap); border:1.5px solid var(--steel); background:var(--steel); color:#fff;
+    border-radius:10px; font-family:var(--head); font-weight:700; font-size:15px;
+    display:flex; align-items:center; justify-content:center; gap:9px; cursor:pointer;
+  }
+  .micbtn svg{width:19px; height:19px;}
+  .micbtn.rec{background:var(--danger); border-color:var(--danger); animation:pulse 1.15s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(178,59,59,.45);}50%{box-shadow:0 0 0 8px rgba(178,59,59,0);}}
+  @media (prefers-reduced-motion: reduce){ .micbtn.rec{animation:none;} }
+  .clearbtn{
+    flex:0 0 auto; min-height:var(--tap); padding:0 16px; border:1.5px solid var(--line);
+    background:var(--card); color:var(--muted); border-radius:10px; font-size:14px; cursor:pointer;
+  }
+  .micnote{font-size:12px; color:var(--muted); margin-top:8px;}
+  .micnote.err{color:var(--danger);}
+
+  /* Material list */
+  .mat{display:flex; gap:8px; margin-bottom:9px; align-items:stretch;}
+  .mat input.desc{flex:1;}
+  .mat input.qty{flex:0 0 96px; width:96px;}
+  .mat .del{
+    flex:0 0 var(--tap); width:var(--tap); border:1.5px solid var(--line); background:var(--card);
+    color:var(--danger); border-radius:10px; font-size:22px; line-height:1; cursor:pointer;
+  }
+  .addbtn{
+    width:100%; min-height:var(--tap); border:1.5px dashed var(--line); background:transparent;
+    color:var(--steel); border-radius:10px; font-family:var(--head); font-weight:700; font-size:15px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+
+  /* Photos */
+  .photobtn{
+    width:100%; min-height:var(--tap); border:1.5px solid var(--steel); background:var(--card);
+    color:var(--steel); border-radius:10px; font-family:var(--head); font-weight:700; font-size:15px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; gap:9px; margin-bottom:12px;
+  }
+  .photobtn svg{width:20px; height:20px;}
+  .thumbs{display:grid; grid-template-columns:repeat(3,1fr); gap:9px;}
+  .thumb{position:relative; aspect-ratio:1/1; border-radius:10px; overflow:hidden; border:1px solid var(--line); background:#ddd;}
+  .thumb img{width:100%; height:100%; object-fit:cover; display:block;}
+  .thumb .x{
+    position:absolute; top:5px; right:5px; width:28px; height:28px; border-radius:50%;
+    background:rgba(27,36,48,.82); color:#fff; border:none; font-size:17px; line-height:28px; cursor:pointer;
+  }
+  .emptyphoto{font-size:13px; color:var(--muted);}
+
+  /* Action bar (erscheint erst am Ende des Formulars) */
+  .actionbar{
+    padding:22px 16px calc(env(safe-area-inset-bottom) + 22px);
+  }
+  .actionbar .inner{max-width:600px; margin:0 auto;}
+  .finish{
+    width:100%; min-height:60px; border:none; border-radius:12px; cursor:pointer;
+    background:var(--amber); color:var(--steel);
+    font-family:var(--head); font-weight:800; font-size:19px; letter-spacing:.01em;
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    box-shadow:0 6px 18px rgba(245,166,35,.35);
+  }
+  .finish:active{background:var(--amber-press);}
+  .finish svg{width:22px; height:22px;}
+  .finish[disabled]{opacity:.7;}
+  .status{text-align:center; font-size:13px; color:var(--muted); margin-top:9px; min-height:18px;}
+  .status.err{color:var(--danger);} .status.ok{color:var(--ok);}
+
+  /* Fallback print view */
+  #printview{display:none;}
+  @media print{
+    body *{visibility:hidden;}
+    #printview, #printview *{visibility:visible;}
+    #printview{display:block; position:absolute; inset:0; padding:24px; font-size:13px; color:#000;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="appbar">
+    <span class="brandmark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#22303C" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 3h6l1 3H8z"/><rect x="5" y="6" width="14" height="15" rx="2"/><path d="M9 11h6M9 15h4"/>
+      </svg>
+    </span>
+    <span class="brandtext"><b>ARBEITSBERICHT</b><span>Kundenauftrag dokumentieren</span></span>
+    <span class="nrchip"><small>BERICHT-NR.</small><span id="berichtnr">–</span></span>
+  </header>
+
+  <div class="firma">
+    <label for="firma">Firma</label>
+    <input id="firma" type="text" placeholder="Ihr Firmenname" autocomplete="organization">
+  </div>
+
+  <!-- 1 Kunde -->
+  <section>
+    <div class="shead"><span class="step">1</span><h2>Kunde</h2></div>
+    <label class="fld"><span class="lab req">Kundenname</span>
+      <input id="kunde" type="text" placeholder="Name des Kunden" autocomplete="off"></label>
+    <label class="fld"><span class="lab">Anschrift / Objekt</span>
+      <input id="anschrift" type="text" placeholder="Straße, PLZ Ort (optional)" autocomplete="off"></label>
+    <label class="fld"><span class="lab">Mitarbeiter</span>
+      <input id="mitarbeiter" type="text" placeholder="Ausführende Person (optional)" autocomplete="off"></label>
+  </section>
+
+  <!-- 2 Anfahrt -->
+  <section>
+    <div class="shead"><span class="step">2</span><h2>Anfahrt</h2></div>
+    <div class="row">
+      <label class="fld"><span class="lab">Kilometer</span>
+        <input id="anfahrt_km" type="number" inputmode="numeric" min="0" step="1" placeholder="z. B. 24"></label>
+      <label class="fld"><span class="lab">Fahrzeit (Min.)</span>
+        <input id="anfahrt_min" type="number" inputmode="numeric" min="0" step="1" placeholder="z. B. 30"></label>
+    </div>
+    <label class="fld"><span class="lab">Bemerkung</span>
+      <input id="anfahrt_bem" type="text" placeholder="z. B. Hin- und Rückfahrt (optional)"></label>
+  </section>
+
+  <!-- 3 Datum & Arbeitszeit -->
+  <section>
+    <div class="shead"><span class="step">3</span><h2>Datum &amp; Arbeitszeit</h2></div>
+    <label class="fld"><span class="lab">Datum</span><input id="datum" type="date"></label>
+    <div class="grid3">
+      <label class="fld"><span class="lab">Beginn</span><input id="beginn" type="time"></label>
+      <label class="fld"><span class="lab">Ende</span><input id="ende" type="time"></label>
+      <label class="fld"><span class="lab">Pause (Min.)</span><input id="pause" type="number" inputmode="numeric" min="0" step="5" placeholder="0"></label>
+    </div>
+    <div class="azbox" id="azbox"><span class="k">Arbeitszeit</span><span class="v" id="azval">–</span></div>
+  </section>
+
+  <!-- 4 Arbeiten -->
+  <section>
+    <div class="shead"><span class="step">4</span><h2>Durchgeführte Arbeiten</h2></div>
+    <textarea id="arbeiten" placeholder="Beschreiben Sie die ausgeführten Arbeiten – tippen oder diktieren."></textarea>
+    <div class="microw">
+      <button type="button" class="micbtn" id="micbtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4M8 21h8"/></svg>
+        <span id="miclabel">Aufnahme starten</span>
+      </button>
+      <button type="button" class="clearbtn" id="arbeitenclear">Leeren</button>
+    </div>
+    <div class="micnote" id="micnote">Tipp: Funktioniert der Knopf nicht, nutzen Sie den Diktier-Knopf (🎤) Ihrer Handy-Tastatur.</div>
+  </section>
+
+  <!-- 5 Material -->
+  <section>
+    <div class="shead"><span class="step">5</span><h2>Material &amp; Leistungen</h2></div>
+    <div id="matlist"></div>
+    <button type="button" class="addbtn" id="addmat">＋ Position hinzufügen</button>
+  </section>
+
+  <!-- 6 Fotos -->
+  <section>
+    <div class="shead"><span class="step">6</span><h2>Fotos</h2></div>
+    <button type="button" class="photobtn" id="photobtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      Foto aufnehmen / auswählen
+    </button>
+    <input id="photoinput" type="file" accept="image/*" multiple hidden>
+    <div class="thumbs" id="thumbs"></div>
+    <div class="emptyphoto" id="photoempty">Noch keine Fotos hinzugefügt.</div>
+  </section>
+
+  <div class="actionbar">
+    <div class="inner">
+      <button type="button" class="finish" id="finish">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Bericht fertigstellen
+      </button>
+      <div class="status" id="status"></div>
+    </div>
+  </div>
+
+</div>
+
+<div id="printview"></div>
+
+<script>
+"use strict";
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  var pad = function(n){ return String(n).padStart(2,'0'); };
+
+  /* ---------- Berichtsnummer + Datum ---------- */
+  var now = new Date();
+  var berichtnr = "" + now.getFullYear() + pad(now.getMonth()+1) + pad(now.getDate()) + "-" + pad(now.getHours()) + pad(now.getMinutes());
+  $('berichtnr').textContent = berichtnr;
+  $('datum').value = now.getFullYear() + "-" + pad(now.getMonth()+1) + "-" + pad(now.getDate());
+
+  /* ---------- Arbeitszeit-Berechnung ---------- */
+  function toMin(t){ if(!t) return null; var p=t.split(':'); if(p.length<2) return null; return (+p[0])*60 + (+p[1]); }
+  function calcAZ(){
+    var b=toMin($('beginn').value), e=toMin($('ende').value);
+    var pauseMin=parseInt($('pause').value,10); if(isNaN(pauseMin)) pauseMin=0;
+    var box=$('azbox'), val=$('azval');
+    if(b===null || e===null){ box.classList.remove('bad'); val.textContent='–'; return null; }
+    var diff = e - b - pauseMin;
+    if(diff < 0){ box.classList.add('bad'); val.textContent='ungültig'; return null; }
+    box.classList.remove('bad');
+    val.textContent = Math.floor(diff/60) + " Std " + pad(diff%60) + " Min";
+    return diff;
+  }
+  ['beginn','ende','pause'].forEach(function(id){ $(id).addEventListener('input', calcAZ); });
+
+  /* ---------- Diktat (Web Speech API) ---------- */
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var rec=null, recording=false;
+  var micbtn=$('micbtn'), miclabel=$('miclabel'), micnote=$('micnote'), ta=$('arbeiten');
+  if(!SR){
+    micbtn.disabled=true; micbtn.style.opacity='.55';
+    micnote.classList.add('err');
+    micnote.textContent='Sprache-zu-Text wird von diesem Browser nicht unterstützt. Nutzen Sie den Diktier-Knopf Ihrer Tastatur.';
+  }
+  function startRec(){
+    try{
+      rec = new SR();
+      rec.lang='de-DE'; rec.continuous=true; rec.interimResults=true;
+      var baseText = ta.value;
+      rec.onresult = function(ev){
+        var finalTxt='', interim='';
+        for(var i=ev.resultIndex; i<ev.results.length; i++){
+          var tr = ev.results[i][0].transcript;
+          if(ev.results[i].isFinal){ finalTxt += tr; } else { interim += tr; }
+        }
+        if(finalTxt){
+          baseText = (baseText ? baseText.replace(/s*$/,'') + ' ' : '') + finalTxt.trim();
+          ta.value = baseText;
+        } else {
+          ta.value = (baseText ? baseText + ' ' : '') + interim;
+        }
+      };
+      rec.onerror = function(ev){
+        micnote.classList.add('err');
+        var m = ev.error==='not-allowed' || ev.error==='service-not-allowed'
+          ? 'Mikrofon-Zugriff blockiert. Erlauben Sie ihn in den Einstellungen – oder nutzen Sie den Diktier-Knopf der Tastatur.'
+          : 'Aufnahme unterbrochen ('+ev.error+'). Bitte erneut versuchen oder die Tastatur nutzen.';
+        micnote.textContent = m;
+        stopRec();
+      };
+      rec.onend = function(){ if(recording){ /* Safari stoppt oft von selbst */ try{ rec.start(); }catch(e){ stopRec(); } } };
+      rec.start();
+      recording=true;
+      micbtn.classList.add('rec'); miclabel.textContent='Aufnahme läuft – tippen zum Stoppen';
+      micnote.classList.remove('err');
+      micnote.textContent='Sprechen Sie jetzt. Der Text erscheint im Feld oben.';
+    }catch(e){
+      micnote.classList.add('err'); micnote.textContent='Aufnahme konnte nicht gestartet werden.';
+      stopRec();
+    }
+  }
+  function stopRec(){
+    recording=false;
+    if(rec){ try{ rec.onend=null; rec.stop(); }catch(e){} rec=null; }
+    micbtn.classList.remove('rec'); miclabel.textContent='Aufnahme starten';
+  }
+  micbtn.addEventListener('click', function(){ if(!SR) return; recording ? stopRec() : startRec(); });
+  $('arbeitenclear').addEventListener('click', function(){ if(recording) stopRec(); ta.value=''; });
+
+  /* ---------- Material & Leistungen ---------- */
+  var matlist=$('matlist');
+  function addMatRow(desc, qty){
+    var row=document.createElement('div'); row.className='mat';
+    var d=document.createElement('input'); d.type='text'; d.className='desc'; d.placeholder='Bezeichnung'; d.value=desc||'';
+    var q=document.createElement('input'); q.type='text'; q.className='qty'; q.placeholder='Menge/Einh.'; q.value=qty||'';
+    var x=document.createElement('button'); x.type='button'; x.className='del'; x.setAttribute('aria-label','Position entfernen'); x.textContent='×';
+    x.addEventListener('click', function(){ matlist.removeChild(row); });
+    row.appendChild(d); row.appendChild(q); row.appendChild(x);
+    matlist.appendChild(row);
+  }
+  $('addmat').addEventListener('click', function(){ addMatRow(); });
+  addMatRow(); // eine leere Startzeile
+
+  /* ---------- Fotos (mit Verkleinerung) ---------- */
+  var photos=[]; // {dataUrl}
+  var thumbs=$('thumbs'), photoempty=$('photoempty');
+  function renderThumbs(){
+    thumbs.innerHTML='';
+    photos.forEach(function(p, idx){
+      var t=document.createElement('div'); t.className='thumb';
+      var im=document.createElement('img'); im.src=p.dataUrl; im.alt='Foto '+(idx+1);
+      var x=document.createElement('button'); x.className='x'; x.type='button'; x.setAttribute('aria-label','Foto entfernen'); x.textContent='×';
+      x.addEventListener('click', function(){ photos.splice(idx,1); renderThumbs(); });
+      t.appendChild(im); t.appendChild(x); thumbs.appendChild(t);
+    });
+    photoempty.style.display = photos.length ? 'none' : 'block';
+  }
+  function compress(file){
+    return new Promise(function(resolve){
+      var reader=new FileReader();
+      reader.onload=function(){
+        var img=new Image();
+        img.onload=function(){
+          var max=1400, w=img.width, h=img.height;
+          if(w>max || h>max){ if(w>=h){ h=Math.round(h*max/w); w=max; } else { w=Math.round(w*max/h); h=max; } }
+          var c=document.createElement('canvas'); c.width=w; c.height=h;
+          c.getContext('2d').drawImage(img,0,0,w,h);
+          resolve(c.toDataURL('image/jpeg', 0.72));
+        };
+        img.onerror=function(){ resolve(null); };
+        img.src=reader.result;
+      };
+      reader.onerror=function(){ resolve(null); };
+      reader.readAsDataURL(file);
+    });
+  }
+  $('photobtn').addEventListener('click', function(){ $('photoinput').click(); });
+  $('photoinput').addEventListener('change', function(ev){
+    var files=Array.prototype.slice.call(ev.target.files||[]);
+    Promise.all(files.map(compress)).then(function(results){
+      results.forEach(function(d){ if(d) photos.push({dataUrl:d}); });
+      renderThumbs();
+      ev.target.value=''; // erlaubt erneutes Auswählen gleicher Datei
+    });
+  });
+  renderThumbs();
+
+  /* ---------- Daten sammeln ---------- */
+  function sanitize(s){ return (s||'').trim().replace(/[^\p{L}\p{N} _-]/gu,'').replace(/\s+/g,'_').replace(/_+/g,'_').replace(/^_+|_+$/g,'').slice(0,40) || 'Kunde'; }
+  function gather(){
+    var mats=[];
+    Array.prototype.forEach.call(matlist.querySelectorAll('.mat'), function(row){
+      var d=row.querySelector('.desc').value.trim(), q=row.querySelector('.qty').value.trim();
+      if(d || q) mats.push({desc:d, qty:q});
+    });
+    return {
+      firma:$('firma').value.trim(), nr:berichtnr,
+      kunde:$('kunde').value.trim(), anschrift:$('anschrift').value.trim(), mitarbeiter:$('mitarbeiter').value.trim(),
+      km:$('anfahrt_km').value.trim(), fahrmin:$('anfahrt_min').value.trim(), anfahrtbem:$('anfahrt_bem').value.trim(),
+      datum:$('datum').value, beginn:$('beginn').value, ende:$('ende').value, pause:$('pause').value.trim(),
+      az:$('azval').textContent, arbeiten:ta.value.trim(),
+      mats:mats, photos:photos
+    };
+  }
+  function fmtDatum(iso){ if(!iso) return '–'; var p=iso.split('-'); return p.length===3 ? p[2]+'.'+p[1]+'.'+p[0] : iso; }
+
+  /* ---------- PDF erstellen (jsPDF) ---------- */
+  function buildPDF(d){
+    var jsPDF = (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : null;
+    if(!jsPDF) return null;
+    var doc=new jsPDF({unit:'mm', format:'a4'});
+    var W=210, H=297, M=16, x=M, y=M, CW=W-2*M;
+    var STEEL=[34,48,60], AMBER=[245,166,35], MUT=[92,102,114], LINE=[201,207,199];
+
+    function ensure(sp){ if(y+sp > H-M){ doc.addPage(); y=M; } }
+    function h2(t){
+      ensure(12); doc.setFillColor(AMBER[0],AMBER[1],AMBER[2]); doc.rect(x,y-4,3,7,'F');
+      doc.setTextColor(STEEL[0],STEEL[1],STEEL[2]); doc.setFont('helvetica','bold'); doc.setFontSize(12);
+      doc.text(t, x+6, y+1.5); y+=9;
+    }
+    function kv(k,v){
+      if(v===undefined||v===null||v==='') return;
+      ensure(7); doc.setFont('helvetica','normal'); doc.setFontSize(10);
+      doc.setTextColor(MUT[0],MUT[1],MUT[2]); doc.text(k, x, y);
+      doc.setTextColor(30,36,48);
+      var lines=doc.splitTextToSize(String(v), CW-42);
+      doc.text(lines, x+42, y); y += Math.max(6, lines.length*5.2);
+    }
+    function para(t){
+      ensure(8); doc.setFont('helvetica','normal'); doc.setFontSize(10.5); doc.setTextColor(30,36,48);
+      var lines=doc.splitTextToSize(t, CW);
+      for(var i=0;i<lines.length;i++){ ensure(6); doc.text(lines[i], x, y); y+=5.4; }
+    }
+    function hr(){ ensure(6); doc.setDrawColor(LINE[0],LINE[1],LINE[2]); doc.setLineWidth(0.3); doc.line(x,y,x+CW,y); y+=7; }
+
+    // Kopf
+    doc.setFillColor(STEEL[0],STEEL[1],STEEL[2]); doc.rect(0,0,W,26,'F');
+    doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(17);
+    doc.text('ARBEITSBERICHT', M, 13);
+    doc.setFontSize(9); doc.setTextColor(174,184,194);
+    doc.text((d.firma||''), M, 20);
+    doc.setFont('helvetica','bold'); doc.setTextColor(245,166,35); doc.setFontSize(10);
+    doc.text('Nr. '+d.nr, W-M, 12, {align:'right'});
+    doc.setFont('helvetica','normal'); doc.setTextColor(174,184,194); doc.setFontSize(9);
+    doc.text(fmtDatum(d.datum), W-M, 19, {align:'right'});
+    y=36;
+
+    h2('Kunde');
+    kv('Kunde', d.kunde || '–'); kv('Anschrift', d.anschrift); kv('Mitarbeiter', d.mitarbeiter);
+    hr();
+
+    h2('Anfahrt');
+    if(d.km) kv('Kilometer', d.km + ' km');
+    if(d.fahrmin) kv('Fahrzeit', d.fahrmin + ' Min.');
+    if(d.anfahrtbem) kv('Bemerkung', d.anfahrtbem);
+    if(!d.km && !d.fahrmin && !d.anfahrtbem) kv('Anfahrt','–');
+    hr();
+
+    h2('Datum & Arbeitszeit');
+    kv('Datum', fmtDatum(d.datum));
+    if(d.beginn||d.ende){ kv('Von / Bis', (d.beginn||'?')+' – '+(d.ende||'?')); }
+    if(d.pause) kv('Pause', d.pause+' Min.');
+    if(d.az && d.az!=='–' && d.az!=='ungültig') kv('Arbeitszeit', d.az);
+    hr();
+
+    h2('Durchgeführte Arbeiten');
+    para(d.arbeiten || '–');
+    hr();
+
+    if(d.mats.length){
+      h2('Material & Leistungen');
+      doc.setFontSize(10);
+      d.mats.forEach(function(m){
+        ensure(6.5);
+        doc.setTextColor(30,36,48); doc.setFont('helvetica','normal');
+        var line = '•  ' + (m.desc||'') + (m.qty ? '   —   '+m.qty : '');
+        var ls=doc.splitTextToSize(line, CW);
+        doc.text(ls, x, y); y += Math.max(6, ls.length*5.2);
+      });
+      hr();
+    }
+
+    if(d.photos.length){
+      h2('Fotos ('+d.photos.length+')');
+      var colW=(CW-6)/2, ph=colW*0.72, col=0;
+      d.photos.forEach(function(p){
+        if(col===0) ensure(ph+4);
+        var px = x + col*(colW+6);
+        try{ doc.addImage(p.dataUrl,'JPEG', px, y, colW, ph); }catch(e){}
+        doc.setDrawColor(LINE[0],LINE[1],LINE[2]); doc.setLineWidth(0.3); doc.rect(px,y,colW,ph);
+        col++;
+        if(col===2){ col=0; y+=ph+6; }
+      });
+      if(col===1) y+=ph+6;
+      hr();
+    }
+
+    // Fußzeile auf allen Seiten
+    var pages=doc.internal.getNumberOfPages();
+    for(var i=1;i<=pages;i++){
+      doc.setPage(i); doc.setFontSize(8); doc.setTextColor(150,158,168);
+      doc.text('Bericht-Nr. '+d.nr+(d.firma?('  ·  '+d.firma):''), M, H-8);
+      doc.text('Seite '+i+' / '+pages, W-M, H-8, {align:'right'});
+    }
+    return doc;
+  }
+
+  /* ---------- Fallback: Druckansicht (falls jsPDF fehlt) ---------- */
+  function printFallback(d){
+    function esc(s){ return (s||'').replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
+    var mats = d.mats.map(function(m){ return '<li>'+esc(m.desc)+(m.qty?(' — '+esc(m.qty)):'')+'</li>'; }).join('');
+    var pics = d.photos.map(function(p){ return '<img src="'+p.dataUrl+'" style="width:48%;margin:1%;border:1px solid #ccc">'; }).join('');
+    $('printview').innerHTML =
+      '<h1 style="font-family:sans-serif">Arbeitsbericht</h1>'+
+      '<p><b>'+esc(d.firma)+'</b> · Nr. '+esc(d.nr)+' · '+fmtDatum(d.datum)+'</p>'+
+      '<h3>Kunde</h3><p>'+esc(d.kunde)+'<br>'+esc(d.anschrift)+'<br>'+esc(d.mitarbeiter)+'</p>'+
+      '<h3>Anfahrt</h3><p>'+esc(d.km)+' km · '+esc(d.fahrmin)+' Min · '+esc(d.anfahrtbem)+'</p>'+
+      '<h3>Arbeitszeit</h3><p>'+esc(d.beginn)+'–'+esc(d.ende)+', Pause '+esc(d.pause)+' Min · '+esc(d.az)+'</p>'+
+      '<h3>Durchgeführte Arbeiten</h3><p>'+esc(d.arbeiten).replace(/\n/g,'<br>')+'</p>'+
+      (mats?('<h3>Material & Leistungen</h3><ul>'+mats+'</ul>'):'')+
+      (pics?('<h3>Fotos</h3><div>'+pics+'</div>'):'');
+    window.print();
+  }
+
+  /* ---------- Fertigstellen ---------- */
+  var status=$('status'), finishbtn=$('finish');
+  function setStatus(msg, cls){ status.className='status'+(cls?(' '+cls):''); status.textContent=msg||''; }
+
+  finishbtn.addEventListener('click', function(){
+    if(recording) stopRec();
+    setStatus('');
+    var d=gather();
+    if(!d.kunde){ setStatus('Bitte den Kundennamen eintragen.', 'err'); $('kunde').focus(); return; }
+
+    var doc=buildPDF(d);
+    var filename='Arbeitsbericht_'+sanitize(d.kunde)+'_'+(d.datum||berichtnr)+'.pdf';
+
+    if(!doc){
+      setStatus('PDF-Modul nicht geladen – öffne Druckansicht (dort „Als PDF sichern“).', 'err');
+      printFallback(d); return;
+    }
+
+    var blob=doc.output('blob');
+    var file=new File([blob], filename, {type:'application/pdf'});
+    var shareData={ files:[file], title:'Arbeitsbericht '+d.kunde, text:'Arbeitsbericht '+d.kunde+' vom '+fmtDatum(d.datum) };
+
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      navigator.share(shareData).then(function(){
+        setStatus('Bericht erstellt und geteilt.', 'ok');
+      }).catch(function(err){
+        if(err && err.name==='AbortError'){ setStatus('Teilen abgebrochen. PDF ist bereit.', ''); downloadBlob(blob, filename); }
+        else { setStatus('Teilen nicht möglich – PDF wurde heruntergeladen.', 'err'); downloadBlob(blob, filename); }
+      });
+    } else {
+      downloadBlob(blob, filename);
+      setStatus('PDF erstellt und heruntergeladen (Teilen-Dialog nicht verfügbar).', 'ok');
+    }
+  });
+
+  function downloadBlob(blob, filename){
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a'); a.href=url; a.download=filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 1200);
+  }
+
+})();
+</script>
+</body>
+</html>
