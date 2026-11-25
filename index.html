@@ -81,6 +81,7 @@
 
   label.fld{display:block; margin:0 0 13px;}
   label.fld > .lab{display:block; font-size:13px; color:var(--muted); margin:0 0 5px;}
+  .subhead{font-size:14px; font-weight:600; margin:14px 0 8px;}
   .req::after{content:" *"; color:var(--amber-press); font-weight:700;}
   input[type=text], input[type=date], input[type=time], input[type=number], textarea{
     width:100%; font-family:var(--body); font-size:16px; color:var(--ink);
@@ -209,21 +210,28 @@
 
   <!-- 2 Anfahrt -->
   <section>
-    <div class="shead"><span class="step">2</span><h2>Anfahrt</h2></div>
+    <div class="shead"><span class="step">2</span><h2>Anfahrt &amp; Rückfahrt</h2></div>
+    <div class="subhead">Anfahrt</div>
     <div class="row">
       <label class="fld"><span class="lab">Beginn</span>
         <input id="anfahrt_beginn" type="time"></label>
       <label class="fld"><span class="lab">Ende</span>
         <input id="anfahrt_ende" type="time"></label>
     </div>
-    <div class="row">
-      <label class="fld"><span class="lab">Kilometer</span>
-        <input id="anfahrt_km" type="number" inputmode="numeric" min="0" step="1" placeholder="z. B. 24"></label>
-      <label class="fld"><span class="lab">Fahrzeit (Min.)</span>
-        <input id="anfahrt_min" type="number" inputmode="numeric" min="0" step="1" placeholder="z. B. 30"></label>
-    </div>
+    <label class="fld"><span class="lab">Fahrzeit (Min.)</span>
+      <input id="anfahrt_min" type="number" inputmode="numeric" min="0" step="1" placeholder="z. B. 30"></label>
     <label class="fld"><span class="lab">Bemerkung</span>
-      <input id="anfahrt_bem" type="text" placeholder="z. B. Hin- und Rückfahrt (optional)"></label>
+      <input id="anfahrt_bem" type="text" placeholder="optional"></label>
+
+    <div class="subhead">Rückfahrt</div>
+    <div class="row">
+      <label class="fld"><span class="lab">Beginn</span>
+        <input id="rueck_beginn" type="time"></label>
+      <label class="fld"><span class="lab">Ende</span>
+        <input id="rueck_ende" type="time"></label>
+    </div>
+    <label class="fld"><span class="lab">Fahrzeit (Min.)</span>
+      <input id="rueck_min" type="number" inputmode="numeric" min="0" step="1" placeholder="z. B. 30"></label>
   </section>
 
   <!-- 3 Datum & Arbeitszeit -->
@@ -447,16 +455,19 @@
   renderThumbs();
 
   /* ---------- Anfahrt: Fahrzeit aus Beginn/Ende ---------- */
-  function calcFahrzeit(){
-    var b=$('anfahrt_beginn').value, e=$('anfahrt_ende').value;
+  function calcFahrzeit(bid, eid, mid){
+    var b=$(bid).value, e=$(eid).value;
     if(!b || !e) return;
     var pb=b.split(':'), pe=e.split(':');
     var m=(+pe[0]*60 + +pe[1]) - (+pb[0]*60 + +pb[1]);
     if(m<0) m+=1440; // über Mitternacht
-    $('anfahrt_min').value=m;
+    $(mid).value=m;
   }
-  $('anfahrt_beginn').addEventListener('change', calcFahrzeit);
-  $('anfahrt_ende').addEventListener('change', calcFahrzeit);
+  [['anfahrt_beginn','anfahrt_ende','anfahrt_min'],['rueck_beginn','rueck_ende','rueck_min']].forEach(function(f){
+    var fn=function(){ calcFahrzeit(f[0],f[1],f[2]); };
+    $(f[0]).addEventListener('change', fn);
+    $(f[1]).addEventListener('change', fn);
+  });
 
   /* ---------- Daten sammeln ---------- */
   function sanitize(s){ return (s||'').trim().replace(/[^\p{L}\p{N} _-]/gu,'').replace(/\s+/g,'_').replace(/_+/g,'_').replace(/^_+|_+$/g,'').slice(0,40) || 'Kunde'; }
@@ -469,8 +480,9 @@
     return {
       firma:FIRMA_NAME, nr:berichtnr,
       kunde:$('kunde').value.trim(), anschrift:$('anschrift').value.trim(), mitarbeiter:$('mitarbeiter').value.trim(),
-      km:$('anfahrt_km').value.trim(), fahrmin:$('anfahrt_min').value.trim(),
+      fahrmin:$('anfahrt_min').value.trim(),
       fahrbeginn:$('anfahrt_beginn').value, fahrende:$('anfahrt_ende').value, anfahrtbem:$('anfahrt_bem').value.trim(),
+      rueckbeginn:$('rueck_beginn').value, rueckende:$('rueck_ende').value, rueckmin:$('rueck_min').value.trim(),
       datum:$('datum').value, beginn:$('beginn').value, ende:$('ende').value, pause:$('pause').value.trim(),
       az:$('azval').textContent, arbeiten:ta.value.trim(),
       mats:mats, photos:photos
@@ -530,10 +542,16 @@
 
     h2('Anfahrt');
     if(d.fahrbeginn||d.fahrende) kv('Von / Bis', (d.fahrbeginn||'?')+' – '+(d.fahrende||'?'));
-    if(d.km) kv('Kilometer', d.km + ' km');
     if(d.fahrmin) kv('Fahrzeit', d.fahrmin + ' Min.');
     if(d.anfahrtbem) kv('Bemerkung', d.anfahrtbem);
-    if(!d.km && !d.fahrmin && !d.anfahrtbem && !d.fahrbeginn && !d.fahrende) kv('Anfahrt','–');
+    if(!d.fahrmin && !d.anfahrtbem && !d.fahrbeginn && !d.fahrende) kv('Anfahrt','–');
+    hr();
+
+    h2('Rückfahrt');
+    if(d.rueckbeginn||d.rueckende) kv('Von / Bis', (d.rueckbeginn||'?')+' – '+(d.rueckende||'?'));
+    if(d.rueckmin) kv('Fahrzeit', d.rueckmin + ' Min.');
+    if(!d.rueckmin && !d.rueckbeginn && !d.rueckende) kv('Rückfahrt','–');
+    if(d.fahrmin && d.rueckmin) kv('Fahrzeit gesamt', (+d.fahrmin + +d.rueckmin) + ' Min.');
     hr();
 
     h2('Datum & Arbeitszeit');
@@ -596,7 +614,8 @@
       '<h1 style="font-family:sans-serif">Arbeitsbericht</h1>'+
       '<p><b>'+esc(d.firma)+'</b> · Nr. '+esc(d.nr)+' · '+fmtDatum(d.datum)+'</p>'+
       '<h3>Kunde</h3><p>'+esc(d.kunde)+'<br>'+esc(d.anschrift)+'<br>'+esc(d.mitarbeiter)+'</p>'+
-      '<h3>Anfahrt</h3><p>'+esc(d.fahrbeginn)+'–'+esc(d.fahrende)+' · '+esc(d.km)+' km · '+esc(d.fahrmin)+' Min · '+esc(d.anfahrtbem)+'</p>'+
+      '<h3>Anfahrt</h3><p>'+esc(d.fahrbeginn)+'–'+esc(d.fahrende)+' · '+esc(d.fahrmin)+' Min · '+esc(d.anfahrtbem)+'</p>'+
+      '<h3>Rückfahrt</h3><p>'+esc(d.rueckbeginn)+'–'+esc(d.rueckende)+' · '+esc(d.rueckmin)+' Min</p>'+
       '<h3>Arbeitszeit</h3><p>'+esc(d.beginn)+'–'+esc(d.ende)+', Pause '+esc(d.pause)+' Min · '+esc(d.az)+'</p>'+
       '<h3>Durchgeführte Arbeiten</h3><p>'+esc(d.arbeiten).replace(/\n/g,'<br>')+'</p>'+
       (mats?('<h3>Material & Leistungen</h3><ul>'+mats+'</ul>'):'')+
