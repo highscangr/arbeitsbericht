@@ -343,11 +343,19 @@
     micnote.classList.add('err');
     micnote.textContent='Sprache-zu-Text wird von diesem Browser nicht unterstützt. Nutzen Sie den Diktier-Knopf Ihrer Tastatur.';
   }
-  function joinTxt(a,b){ a=(a||'').replace(/\s+$/,''); b=(b||'').trim(); return a&&b ? a+' '+b : (a||b); }
+  /* paraSep: Trenner vor dem ersten Text einer neuen Aufnahme – jede Aufnahme
+     (Start bis Stopp) beginnt als eigener Absatz in einer neuen Zeile. */
+  var paraSep='';
+  function joinTxt(a,b){
+    a=(a||'').replace(/[ \t]+$/,''); b=(b||'').trim();
+    if(!a || !b) return a || b;
+    if(/\n$/.test(a)) return a+b;
+    return a + (paraSep || ' ') + b;
+  }
   /* Text der Sitzung r fest übernehmen */
   function commit(r){
     if(r.__gen!==clearGen) return;
-    if(r.__txt){ dictBase=joinTxt(dictBase, r.__txt); r.__txt=''; ta.value=dictBase; }
+    if(r.__txt){ dictBase=joinTxt(dictBase, r.__txt); r.__txt=''; ta.value=dictBase; paraSep=''; }
     r.__from = r.__len||0;
   }
   /* Android/Chrome: kurze Sitzungen (continuous:true dort unzuverlässig, Chromium-Bug
@@ -451,6 +459,7 @@
     if(stopping){ commit(stopping); stopping.onresult=null; stopping.onend=null; stopping=null; }
     recording=true; failCount=0;
     dictBase = ta.value;
+    paraSep = dictBase.trim() ? '\n' : '';
     micbtn.classList.add('rec'); miclabel.textContent='Aufnahme läuft – tippen zum Stoppen';
     micnote.classList.remove('err');
     micnote.textContent='Sprechen Sie jetzt. Der Text erscheint im Feld oben.';
