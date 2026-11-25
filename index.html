@@ -338,6 +338,27 @@
                (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
   var MAX_FAILS=6;
   var micbtn=$('micbtn'), miclabel=$('miclabel'), micnote=$('micnote'), ta=$('arbeiten');
+  /* Fehlersuche: Seite mit ?debug=1 aufrufen → Ereignisprotokoll unter dem Mikrofon-Knopf */
+  var DEBUG = /[?&]debug=1/.test(location.search), dbgBox=null, dbgLines=[], dbgT0=Date.now();
+  if(DEBUG){
+    dbgBox=document.createElement('pre');
+    dbgBox.style.cssText='font:11px/1.35 ui-monospace,monospace;white-space:pre-wrap;background:#111;color:#9f9;padding:8px;border-radius:8px;max-height:260px;overflow:auto;margin-top:8px';
+    micnote.parentNode.insertBefore(dbgBox, micnote.nextSibling);
+  }
+  function dbg(m){
+    if(!DEBUG) return;
+    dbgLines.push(((Date.now()-dbgT0)/1000).toFixed(1)+'s '+m);
+    if(dbgLines.length>60) dbgLines.shift();
+    dbgBox.textContent=(IS_IOS?'iOS ':'')+navigator.userAgent.slice(0,90)+'\n'+dbgLines.join('\n');
+    dbgBox.scrollTop=dbgBox.scrollHeight;
+  }
+  function kill(r){ /* Sitzung hart beenden und vollständig lösen */
+    if(!r) return;
+    r.onresult=null; r.onend=null; r.onerror=null; r.onstart=null; r.onaudiostart=null;
+    try{ r.abort(); }catch(e){}
+    dbg('abort #'+r.__id);
+  }
+  var recSeq=0;
   if(!SR){
     micbtn.disabled=true; micbtn.style.opacity='.55';
     micnote.classList.add('err');
@@ -356,7 +377,15 @@
   function commit(r){
     if(r.__gen!==clearGen) return;
     if(r.__txt){ dictBase=joinTxt(dictBase, r.__txt); r.__txt=''; ta.value=dictBase; paraSep=''; }
-    r.__from = r.__len||0;
+    r.__from = r.__len||0; r.__skipW = 0;
+  }
+  /* Ab jetzt nur noch neue Wörter der laufenden Sitzung verwenden (nach "Leeren" oder
+     Handeingabe). Safari hängt neue Wörter an den letzten Abschnitt an – daher nicht den
+     ganzen Abschnitt verwerfen, sondern nur die bisherigen Wörter darin. */
+  function markOffset(r){
+    r.__txt='';
+    if(r.__len>0){ r.__from=r.__len-1; r.__skipW=(r.__lastTr||'').trim().split(/\s+/).filter(Boolean).length; }
+    else { r.__from=0; r.__skipW=0; }
   }
   /* Android/Chrome: kurze Sitzungen (continuous:true dort unzuverlässig, Chromium-Bug
      40324711), nach jeder Pause wird dieselbe Instanz neu gestartet.
@@ -386,18 +415,27 @@
   function makeRec(){
     var r = new SR();
     r.lang='de-DE'; r.continuous=IS_IOS; r.interimResults=true;
-    r.__gen=clearGen; r.__txt=''; r.__from=0; r.__len=0; r.__err=null;
+    r.__gen=clearGen; r.__txt=''; r.__from=0; r.__skipW=0; r.__len=0; r.__lastTr=''; r.__err=null; r.__id=++recSeq; r.__on=false;
+    r.onstart = function(){ r.__on=true; dbg('onstart #'+r.__id); };
+    r.onaudiostart = function(){ r.__on=true; dbg('onaudiostart #'+r.__id); };
     r.onresult = function(ev){
+      dbg('onresult #'+r.__id+' n='+ev.results.length+(ev.results.length&&ev.results[ev.results.length-1].isFinal?' final':''));
       if(r.__gen!==clearGen) return; // gehört zu Text, der inzwischen geleert wurde
       failCount=0;
       if(rec===r) armWatchdog(r);
       r.__len = ev.results.length;
+      r.__lastTr = ev.results.length ? ev.results[ev.results.length-1][0].transcript : '';
       var t='';
-      for(var i=r.__from; i<ev.results.length; i++){ t += ' ' + ev.results[i][0].transcript; }
+      for(var i=r.__from; i<ev.results.length; i++){
+        var tr = ev.results[i][0].transcript;
+        if(i===r.__from && r.__skipW){ tr = tr.trim().split(/\s+/).slice(r.__skipW).join(' '); }
+        t += ' ' + tr;
+      }
       r.__txt = t.replace(/\s+/g,' ').trim();
       ta.value = joinTxt(dictBase, r.__txt);
     };
     r.onerror = function(ev){
+      dbg('onerror #'+r.__id+' '+ev.error);
       if(rec!==r) return;
       if(ev.error==='no-speech' || ev.error==='aborted') return; // normale Sprechpause
       if(ev.error==='not-allowed' || ev.error==='service-not-allowed'){
@@ -410,6 +448,7 @@
       r.__err = ev.error; // onend entscheidet über Neustart
     };
     r.onend = function(){
+      dbg('onend #'+r.__id);
       commit(r);
       if(!recording || rec!==r) return;
       var delay = 250;
@@ -428,7 +467,7 @@
     return r;
   }
   function restartSession(r){
-    r.__txt=''; r.__from=0; r.__len=0;
+    r.__txt=''; r.__from=0; r.__skipW=0; r.__len=0; r.__lastTr='';
     try{ r.start(); armWatchdog(r); }
     catch(e){
       /* Wiederverwendung gescheitert → neue Instanz */
@@ -441,7 +480,18 @@
     try{ r = makeRec(); }catch(e){ fail('Aufnahme konnte nicht gestartet werden ('+(e&&e.name||e)+').'); return; }
     r.__started = !!isRestart;
     rec = r;
-    try{ r.start(); armWatchdog(r); }
+    dbg('start #'+r.__id+(isRestart?' (Neustart)':''));
+    try{
+      r.start(); armWatchdog(r);
+      /* Meldet sich das Mikrofon nicht, nicht still hängen bleiben */
+      setTimeout(function(){
+        if(recording && rec===r && !r.__on && !r.__len){
+          dbg('kein onstart #'+r.__id);
+          kill(r); rec=null;
+          fail('Das Mikrofon reagiert nicht. Bitte erneut auf das Mikrofon tippen – hilft das nicht, die Seite neu laden.');
+        }
+      }, 4000);
+    }
     catch(e){
       failCount++;
       if(failCount>=MAX_FAILS || (IS_IOS && isRestart)){
@@ -456,7 +506,9 @@
   }
   var stopping=null; // gestoppte Sitzung, die noch letzte Worte liefern darf
   function startRec(){
-    if(stopping){ commit(stopping); stopping.onresult=null; stopping.onend=null; stopping=null; }
+    if(stopping){ commit(stopping); kill(stopping); stopping=null; }
+    if(rec){ commit(rec); kill(rec); rec=null; }
+    dbg('Aufnahme starten');
     recording=true; failCount=0;
     dictBase = ta.value;
     paraSep = dictBase.trim() ? '\n' : '';
@@ -470,32 +522,42 @@
   function stopRec(discard){
     recording=false;
     clearTimeout(watchdog);
+    dbg('Aufnahme stoppen'+(discard?' (verwerfen)':''));
     if(rec){ var r=rec; rec=null; r.onerror=null;
-      if(discard){ r.onresult=null; r.onend=null; try{ r.abort(); }catch(e){} }
+      if(discard){ kill(r); }
+      else if(IS_IOS){
+        /* Safari: stop() meldet zwar das Ende, hört aber teils weiter zu und blockiert
+           das Mikrofon. Text steht schon im Feld → übernehmen und hart beenden. */
+        commit(r); kill(r);
+      }
       else {
         stopping=r;
         r.onend=function(){ commit(r); if(stopping===r) stopping=null; };
         try{ r.stop(); }catch(e){ commit(r); stopping=null; }
         /* Falls der Browser kein Ende meldet (Safari): nach 1,5 s trotzdem übernehmen */
-        setTimeout(function(){ if(stopping===r){ commit(r); r.onresult=null; stopping=null; } }, 1500);
+        setTimeout(function(){ if(stopping===r){ commit(r); kill(r); stopping=null; } }, 1500);
       } }
     micbtn.classList.remove('rec'); miclabel.textContent='Aufnahme starten';
   }
   micbtn.addEventListener('click', function(){ if(!SR) return; recording ? stopRec() : startRec(); });
   $('arbeitenclear').addEventListener('click', function(){
-    var was = recording;
+    dbg('Leeren');
     clearGen++;
-    if(recording) stopRec(true);
-    if(stopping){ stopping.onresult=null; stopping.onend=null; try{ stopping.abort(); }catch(e){} stopping=null; }
-    ta.value=''; dictBase='';
-    /* Lief die Aufnahme, mit leerem Feld weiter aufnehmen. Auf dem iPhone direkt im
-       Klick (Safari erlaubt den Mikrofonstart nur unmittelbar nach einem Tippen). */
-    if(was){ if(IS_IOS) startRec(); else setTimeout(function(){ if(!recording) startRec(); }, 400); }
+    if(stopping){ kill(stopping); stopping=null; }
+    ta.value=''; dictBase=''; paraSep='';
+    /* iPhone: läuft die Aufnahme, einfach mit leerem Feld weiter aufnehmen – ohne Neustart
+       des Mikrofons (Abbrechen + sofortiger Neustart blockiert es in Safari). Bisherige
+       Wörter dieser Sitzung werden ab jetzt ignoriert. */
+    if(!rec) return;
+    if(IS_IOS){ rec.__gen=clearGen; markOffset(rec); return; }
+    /* Android/Chrome: Sitzung verwerfen und nach kurzer Pause neu starten (bewährt) */
+    stopRec(true);
+    setTimeout(function(){ if(!recording) startRec(); }, 400);
   });
   /* Von Hand geänderten Text übernehmen, damit das Diktat nichts überschreibt */
   ta.addEventListener('input', function(){
     dictBase = ta.value;
-    if(rec){ rec.__txt=''; rec.__from=rec.__len||0; }
+    if(rec) markOffset(rec);
   });
 
   /* ---------- Material & Leistungen ---------- */
