@@ -338,27 +338,35 @@
     micnote.textContent='Sprache-zu-Text wird von diesem Browser nicht unterstützt. Nutzen Sie den Diktier-Knopf Ihrer Tastatur.';
   }
   /* continuous:true ist auf Android Chrome unzuverlässig (Chromium-Bug 40324711).
-     Stattdessen kurze Einzel-Sitzungen: Nach jeder Sprechpause endet die Sitzung und
-     es wird automatisch eine NEUE gestartet (das Wiederverwenden der alten Sitzung
-     scheitert auf manchen Geräten). Ein Wächter startet neu, falls eine Sitzung hängt. */
+     Stattdessen kurze Einzel-Sitzungen, die nach jeder Sprechpause automatisch neu
+     gestartet werden. Dabei wird dieselbe Instanz wiederverwendet (bewährt); nur wenn
+     ihr Neustart scheitert oder sie hängt, wird eine neue erzeugt. Fehler führen erst
+     nach mehreren Fehlversuchen in Folge zum Abbruch, mit wachsender Wartezeit. */
+  var MAX_FAILS=6;
   function armWatchdog(r){
     clearTimeout(watchdog);
     watchdog = setTimeout(function(){
-      if(recording && rec===r){ try{ r.onend=null; r.abort(); }catch(e){} nextSession(); }
-    }, 15000);
-  }
-  function nextSession(){
-    setTimeout(function(){ if(recording) startSession(); }, 250);
+      if(recording && rec===r){
+        r.onend=null; r.onerror=null;
+        try{ r.abort(); }catch(e){}
+        rec=null;
+        setTimeout(function(){ if(recording) startSession(); }, 400);
+      }
+    }, 20000);
   }
   function fail(msg){
     micnote.classList.add('err'); micnote.textContent=msg; stopRec();
   }
-  function startSession(){
+  function errText(code){
+    if(code==='network') return 'Keine Verbindung zum Spracherkennungsdienst. Prüfen Sie die Internetverbindung – oder nutzen Sie den Diktier-Knopf der Tastatur. (Fehler: network)';
+    if(code==='audio-capture') return 'Mikrofon nicht verfügbar – evtl. nutzt eine andere App es gerade. Bitte erneut starten. (Fehler: audio-capture)';
+    return 'Aufnahme unterbrochen (Fehler: '+code+'). Bitte erneut starten oder die Tastatur nutzen.';
+  }
+  function makeRec(){
     var myGen = clearGen;
-    var r;
-    try{ r = new SR(); }catch(e){ fail('Aufnahme konnte nicht gestartet werden.'); return; }
-    rec = r;
+    var r = new SR();
     r.lang='de-DE'; r.continuous=false; r.interimResults=true;
+    r.__err = null;
     r.onresult = function(ev){
       if(myGen!==clearGen) return; // gehört zu Text, der inzwischen geleert wurde
       failCount=0;
@@ -377,27 +385,44 @@
     };
     r.onerror = function(ev){
       if(rec!==r) return;
-      if(ev.error==='no-speech' || ev.error==='aborted') return; // normale Sprechpause – onend startet neu
+      if(ev.error==='no-speech' || ev.error==='aborted') return; // normale Sprechpause
       if(ev.error==='not-allowed' || ev.error==='service-not-allowed'){
         fail('Mikrofon-Zugriff blockiert. Erlauben Sie ihn in den Einstellungen – oder nutzen Sie den Diktier-Knopf der Tastatur.');
         return;
       }
-      /* network, audio-capture u. a.: oft nur kurz – einige Male still neu versuchen */
-      failCount++;
-      if(failCount>3){
-        fail(ev.error==='network'
-          ? 'Keine Verbindung zum Spracherkennungsdienst. Prüfen Sie die Internetverbindung – oder nutzen Sie den Diktier-Knopf der Tastatur.'
-          : 'Aufnahme unterbrochen ('+ev.error+'). Bitte erneut versuchen oder die Tastatur nutzen.');
-      }
+      r.__err = ev.error; // onend entscheidet über Neustart
     };
     r.onend = function(){
-      if(recording && rec===r) nextSession();
+      if(!recording || rec!==r) return;
+      var delay = 250;
+      if(r.__err){
+        failCount++;
+        if(failCount>=MAX_FAILS){ fail(errText(r.__err)); return; }
+        delay = Math.min(500*failCount, 3000);
+      }
+      r.__err = null;
+      setTimeout(function(){ if(recording && rec===r) restartSession(r); }, delay);
     };
+    return r;
+  }
+  function restartSession(r){
+    try{ r.start(); armWatchdog(r); }
+    catch(e){
+      /* Wiederverwendung gescheitert → neue Instanz */
+      r.onend=null; r.onerror=null; rec=null;
+      startSession();
+    }
+  }
+  function startSession(){
+    var r;
+    try{ r = makeRec(); }catch(e){ fail('Aufnahme konnte nicht gestartet werden ('+(e&&e.name||e)+').'); return; }
+    rec = r;
     try{ r.start(); armWatchdog(r); }
     catch(e){
       failCount++;
-      if(failCount>3) fail('Aufnahme konnte nicht gestartet werden.');
-      else setTimeout(function(){ if(recording && rec===r) startSession(); }, 500);
+      if(failCount>=MAX_FAILS){ fail('Aufnahme konnte nicht gestartet werden ('+(e&&e.name||e)+').'); return; }
+      r.onend=null; r.onerror=null; rec=null;
+      setTimeout(function(){ if(recording) startSession(); }, Math.min(500*failCount, 3000));
     }
   }
   function startRec(){
