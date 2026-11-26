@@ -685,6 +685,24 @@
     $(f[1]).addEventListener('change', fn);
   });
 
+  /* ---------- Zeiten weitergeben ----------
+     Ende Anfahrt → Beginn Arbeitszeit, Ende Arbeitszeit → Beginn Rückfahrt.
+     Übernommen wird nur, wenn das Zielfeld leer ist oder noch den zuletzt
+     automatisch übernommenen Wert enthält – von Hand geänderte Zeiten bleiben. */
+  [['anfahrt_ende','beginn'],['ende','rueck_beginn']].forEach(function(p){
+    var src=$(p[0]), dst=$(p[1]), auto='';
+    function pass(){
+      var v=src.value;
+      if(!v || v===dst.value) return;
+      if(dst.value && dst.value!==auto) return; // von Hand gesetzt
+      dst.value=v; auto=v;
+      dst.dispatchEvent(new Event('input',{bubbles:true}));
+      dst.dispatchEvent(new Event('change',{bubbles:true}));
+    }
+    src.addEventListener('input', pass);
+    src.addEventListener('change', pass);
+  });
+
   /* ---------- Daten sammeln ---------- */
   function sanitize(s){ return (s||'').trim().replace(/[^\p{L}\p{N} _-]/gu,'').replace(/\s+/g,'_').replace(/_+/g,'_').replace(/^_+|_+$/g,'').slice(0,40) || 'Kunde'; }
   function gather(){
