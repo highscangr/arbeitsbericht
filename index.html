@@ -359,6 +359,9 @@
     dbg('abort #'+r.__id);
   }
   var recSeq=0;
+  /* iPhone/Safari: EINE Erkennungs-Instanz für die ganze Seite wiederverwenden.
+     Neue Instanzen nach Stopp/Abbruch bleiben in Safari stumm (zweite Aufnahme ging nicht). */
+  var iosRec=null;
   if(!SR){
     micbtn.disabled=true; micbtn.style.opacity='.55';
     micnote.classList.add('err');
@@ -395,6 +398,14 @@
   function armWatchdog(r){
     clearTimeout(watchdog);
     watchdog = setTimeout(function(){
+      if(recording && rec===r && IS_IOS){
+        /* abbrechen – onend startet dieselbe Instanz neu; kommt kein onend, selbst neu starten */
+        dbg('Wächter #'+r.__id);
+        commit(r);
+        try{ r.abort(); }catch(e){}
+        setTimeout(function(){ if(recording && rec===r && r.__busy){ r.__busy=false; iosStart(true); } }, 1500);
+        return;
+      }
       if(recording && rec===r){
         commit(r);
         r.onend=null; r.onerror=null; r.onresult=null;
@@ -420,11 +431,12 @@
     r.onaudiostart = function(){ r.__on=true; dbg('onaudiostart #'+r.__id); };
     r.onresult = function(ev){
       dbg('onresult #'+r.__id+' n='+ev.results.length+(ev.results.length&&ev.results[ev.results.length-1].isFinal?' final':''));
+      r.__len = ev.results.length;
+      r.__lastTr = ev.results.length ? ev.results[ev.results.length-1][0].transcript : '';
+      if(rec!==r && stopping!==r) return; // Aufnahme gestoppt – nichts mehr eintragen
       if(r.__gen!==clearGen) return; // gehört zu Text, der inzwischen geleert wurde
       failCount=0;
       if(rec===r) armWatchdog(r);
-      r.__len = ev.results.length;
-      r.__lastTr = ev.results.length ? ev.results[ev.results.length-1][0].transcript : '';
       var t='';
       for(var i=r.__from; i<ev.results.length; i++){
         var tr = ev.results[i][0].transcript;
@@ -449,6 +461,7 @@
     };
     r.onend = function(){
       dbg('onend #'+r.__id);
+      r.__busy=false;
       commit(r);
       if(!recording || rec!==r) return;
       var delay = 250;
@@ -460,7 +473,7 @@
       r.__err = null;
       setTimeout(function(){
         if(!(recording && rec===r)) return;
-        if(IS_IOS){ r.onresult=null; r.onend=null; r.onerror=null; rec=null; startSession(true); }
+        if(IS_IOS) iosStart(true);
         else restartSession(r);
       }, delay);
     };
@@ -475,7 +488,43 @@
       startSession(true);
     }
   }
+  function resetSess(r){
+    r.__gen=clearGen; r.__txt=''; r.__from=0; r.__skipW=0; r.__len=0; r.__lastTr=''; r.__err=null; r.__on=false; r.__id=++recSeq;
+  }
+  function iosStart(isRestart){
+    var r;
+    try{ if(!iosRec) iosRec=makeRec(); r=iosRec; }
+    catch(e){ fail('Aufnahme konnte nicht gestartet werden ('+(e&&e.name||e)+').'); return; }
+    rec=r; r.__started=!!isRestart;
+    try{
+      r.start();
+      resetSess(r); r.__busy=true;
+      dbg('start #'+r.__id+(isRestart?' (Neustart)':'')+' [iOS, gleiche Instanz]');
+    }catch(e){
+      dbg('start() abgelehnt: '+(e&&e.name||e));
+      if(e && e.name==='InvalidStateError'){
+        /* Safari hört nach dem Stoppen noch zu → laufende Sitzung einfach weiterverwenden,
+           nur neue Wörter übernehmen */
+        r.__gen=clearGen; markOffset(r); r.__on=true; r.__busy=true; r.__err=null;
+        armWatchdog(r);
+        return;
+      }
+      rec=null;
+      fail(isRestart ? 'Aufnahme beendet. Zum Weitersprechen bitte erneut auf das Mikrofon tippen.'
+                     : 'Aufnahme konnte nicht gestartet werden ('+(e&&e.name||e)+').');
+      return;
+    }
+    armWatchdog(r);
+    setTimeout(function(){
+      if(recording && rec===r && !r.__on && !r.__len){
+        dbg('kein onstart #'+r.__id+' – Instanz verworfen');
+        kill(r); if(iosRec===r) iosRec=null; rec=null;
+        fail('Das Mikrofon reagiert nicht. Bitte erneut auf das Mikrofon tippen – hilft das nicht, die Seite neu laden.');
+      }
+    }, 4000);
+  }
   function startSession(isRestart){
+    if(IS_IOS){ iosStart(isRestart); return; }
     var r;
     try{ r = makeRec(); }catch(e){ fail('Aufnahme konnte nicht gestartet werden ('+(e&&e.name||e)+').'); return; }
     r.__started = !!isRestart;
@@ -507,7 +556,7 @@
   var stopping=null; // gestoppte Sitzung, die noch letzte Worte liefern darf
   function startRec(){
     if(stopping){ commit(stopping); kill(stopping); stopping=null; }
-    if(rec){ commit(rec); kill(rec); rec=null; }
+    if(rec){ commit(rec); if(!IS_IOS) kill(rec); rec=null; }
     dbg('Aufnahme starten');
     recording=true; failCount=0;
     dictBase = ta.value;
@@ -523,14 +572,17 @@
     recording=false;
     clearTimeout(watchdog);
     dbg('Aufnahme stoppen'+(discard?' (verwerfen)':''));
-    if(rec){ var r=rec; rec=null; r.onerror=null;
-      if(discard){ kill(r); }
-      else if(IS_IOS){
-        /* Safari: stop() meldet zwar das Ende, hört aber teils weiter zu und blockiert
-           das Mikrofon. Text steht schon im Feld → übernehmen und hart beenden. */
-        commit(r); kill(r);
+    if(rec){ var r=rec; rec=null;
+      if(IS_IOS){
+        /* Safari: Text steht schon im Feld → übernehmen und abbrechen. Die Instanz behält
+           ihre Handler und wird beim nächsten Start wiederverwendet. */
+        commit(r);
+        try{ r.abort(); }catch(e){}
+        dbg('abort #'+r.__id+' (Instanz bleibt)');
       }
+      else if(discard){ r.onerror=null; kill(r); }
       else {
+        r.onerror=null;
         stopping=r;
         r.onend=function(){ commit(r); if(stopping===r) stopping=null; };
         try{ r.stop(); }catch(e){ commit(r); stopping=null; }
