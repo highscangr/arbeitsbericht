@@ -210,8 +210,7 @@
 
   <!-- 2 Anfahrt -->
   <section>
-    <div class="shead"><span class="step">2</span><h2>Anfahrt &amp; Rückfahrt</h2></div>
-    <div class="subhead">Anfahrt</div>
+    <div class="shead"><span class="step">2</span><h2>Anfahrt</h2></div>
     <div class="row">
       <label class="fld"><span class="lab">Beginn</span>
         <input id="anfahrt_beginn" type="time"></label>
@@ -222,16 +221,6 @@
       <input id="anfahrt_min" type="number" inputmode="numeric" min="0" step="1" placeholder="z. B. 30"></label>
     <label class="fld"><span class="lab">Bemerkung</span>
       <input id="anfahrt_bem" type="text" placeholder="optional"></label>
-
-    <div class="subhead">Rückfahrt</div>
-    <div class="row">
-      <label class="fld"><span class="lab">Beginn</span>
-        <input id="rueck_beginn" type="time"></label>
-      <label class="fld"><span class="lab">Ende</span>
-        <input id="rueck_ende" type="time"></label>
-    </div>
-    <label class="fld"><span class="lab">Fahrzeit (Min.)</span>
-      <input id="rueck_min" type="number" inputmode="numeric" min="0" step="1" placeholder="z. B. 30"></label>
   </section>
 
   <!-- 3 Datum & Arbeitszeit -->
@@ -246,9 +235,22 @@
     <div class="azbox" id="azbox"><span class="k">Arbeitszeit</span><span class="v" id="azval">–</span></div>
   </section>
 
-  <!-- 4 Arbeiten -->
+  <!-- 4 Rückfahrt -->
   <section>
-    <div class="shead"><span class="step">4</span><h2>Durchgeführte Arbeiten</h2></div>
+    <div class="shead"><span class="step">4</span><h2>Rückfahrt</h2></div>
+    <div class="row">
+      <label class="fld"><span class="lab">Beginn</span>
+        <input id="rueck_beginn" type="time"></label>
+      <label class="fld"><span class="lab">Ende</span>
+        <input id="rueck_ende" type="time"></label>
+    </div>
+    <label class="fld"><span class="lab">Fahrzeit (Min.)</span>
+      <input id="rueck_min" type="number" inputmode="numeric" min="0" step="1" placeholder="z. B. 30"></label>
+  </section>
+
+  <!-- 5 Arbeiten -->
+  <section>
+    <div class="shead"><span class="step">5</span><h2>Durchgeführte Arbeiten</h2></div>
     <textarea id="arbeiten" placeholder="Beschreiben Sie die ausgeführten Arbeiten – tippen oder diktieren."></textarea>
     <div class="microw">
       <button type="button" class="micbtn" id="micbtn">
@@ -260,16 +262,16 @@
     <div class="micnote" id="micnote">Tipp: Funktioniert der Knopf nicht, nutzen Sie den Diktier-Knopf (🎤) Ihrer Handy-Tastatur.</div>
   </section>
 
-  <!-- 5 Material -->
+  <!-- 6 Material -->
   <section>
-    <div class="shead"><span class="step">5</span><h2>Material &amp; Leistungen</h2></div>
+    <div class="shead"><span class="step">6</span><h2>Material &amp; Leistungen</h2></div>
     <div id="matlist"></div>
     <button type="button" class="addbtn" id="addmat">＋ Position hinzufügen</button>
   </section>
 
-  <!-- 6 Fotos -->
+  <!-- 7 Fotos -->
   <section>
-    <div class="shead"><span class="step">6</span><h2>Fotos</h2></div>
+    <div class="shead"><span class="step">7</span><h2>Fotos</h2></div>
     <button type="button" class="photobtn" id="photobtn">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
       Foto aufnehmen / auswählen
@@ -795,18 +797,18 @@
     if(!d.fahrmin && !d.anfahrtbem && !d.fahrbeginn && !d.fahrende) kv('Anfahrt','–');
     hr();
 
-    h2('Rückfahrt');
-    if(d.rueckbeginn||d.rueckende) kv('Von / Bis', (d.rueckbeginn||'?')+' – '+(d.rueckende||'?'));
-    if(d.rueckmin) kv('Fahrzeit', d.rueckmin + ' Min.');
-    if(!d.rueckmin && !d.rueckbeginn && !d.rueckende) kv('Rückfahrt','–');
-    if(d.fahrmin && d.rueckmin) kv('Fahrzeit gesamt', (+d.fahrmin + +d.rueckmin) + ' Min.');
-    hr();
-
     h2('Datum & Arbeitszeit');
     kv('Datum', fmtDatum(d.datum));
     if(d.beginn||d.ende){ kv('Von / Bis', (d.beginn||'?')+' – '+(d.ende||'?')); }
     if(d.pause) kv('Pause', d.pause+' Min.');
     if(d.az && d.az!=='–' && d.az!=='ungültig') kv('Arbeitszeit', d.az);
+    hr();
+
+    h2('Rückfahrt');
+    if(d.rueckbeginn||d.rueckende) kv('Von / Bis', (d.rueckbeginn||'?')+' – '+(d.rueckende||'?'));
+    if(d.rueckmin) kv('Fahrzeit', d.rueckmin + ' Min.');
+    if(!d.rueckmin && !d.rueckbeginn && !d.rueckende) kv('Rückfahrt','–');
+    if(d.fahrmin && d.rueckmin) kv('Fahrzeit gesamt', (+d.fahrmin + +d.rueckmin) + ' Min.');
     hr();
 
     h2('Durchgeführte Arbeiten');
@@ -863,8 +865,8 @@
       '<p><b>'+esc(d.firma)+'</b> · Nr. '+esc(d.nr)+' · '+fmtDatum(d.datum)+'</p>'+
       '<h3>Kunde</h3><p>'+esc(d.kunde)+'<br>'+esc(d.anschrift)+'<br>'+esc(d.mitarbeiter)+'</p>'+
       '<h3>Anfahrt</h3><p>'+esc(d.fahrbeginn)+'–'+esc(d.fahrende)+' · '+esc(d.fahrmin)+' Min · '+esc(d.anfahrtbem)+'</p>'+
-      '<h3>Rückfahrt</h3><p>'+esc(d.rueckbeginn)+'–'+esc(d.rueckende)+' · '+esc(d.rueckmin)+' Min</p>'+
       '<h3>Arbeitszeit</h3><p>'+esc(d.beginn)+'–'+esc(d.ende)+', Pause '+esc(d.pause)+' Min · '+esc(d.az)+'</p>'+
+      '<h3>Rückfahrt</h3><p>'+esc(d.rueckbeginn)+'–'+esc(d.rueckende)+' · '+esc(d.rueckmin)+' Min</p>'+
       '<h3>Durchgeführte Arbeiten</h3><p>'+esc(d.arbeiten).replace(/\n/g,'<br>')+'</p>'+
       (mats?('<h3>Material & Leistungen</h3><ul>'+mats+'</ul>'):'')+
       (pics?('<h3>Fotos</h3><div>'+pics+'</div>'):'');
